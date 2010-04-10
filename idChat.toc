@@ -1,2 +1,2 @@
-## Interface: 30000
+## Interface: 30300
 Addon.lua
