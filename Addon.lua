@@ -151,10 +151,10 @@ function enable(...)
 	hide_frame(ChatFrameMenuButton)
 
 	-- editbox
-	local x=({ChatFrameEditBox:GetRegions()})
-	x[6]:SetAlpha(0)
-	x[7]:SetAlpha(0)
-	x[8]:SetAlpha(0)
+	local a, b, c = select(6, ChatFrameEditBox:GetRegions())
+	a:SetAlpha(0)
+	b:SetAlpha(0)
+	c:SetAlpha(0)
 
 	-- editbox position
 	ChatFrameEditBox:ClearAllPoints()
