@@ -4,62 +4,46 @@ local TL, TC, TR = 'TOPLEFT', 'TOP', 'TOPRIGHT'
 local ML, MC, MR = 'LEFT', 'CENTER', 'RIGHT'
 local BL, BC, BR = 'BOTTOMLEFT', 'BOTTOM', 'BOTTOMRIGHT'
 
-local hooks = {}
-local replaces = {
-	['Guild'] = 'G',
-	['Party'] = 'P',
-	['Raid'] = 'R',
-	['Raid Leader'] = 'RL',
-	['Raid Warning'] = 'RW',
-	['Officer'] = 'O',
-	['Battleground'] = 'B',
-	['Battleground Leader'] = 'BL',
-	['(%d+)%. .-'] = '%1',
-}
+local f = CreateFrame('Frame')
+local original_addmessages = {}
 
-local function moveFrame (f, p1, p, p2, x, y)
-	f:ClearAllPoints()
-	f:SetPoint(p1, p, p2, x, y)
+local dummy = function(...) end
+local hide_frame
+local scroll_chat
+local tell_target
+local add_message
+
+local enable
+local on_event
+
+_G.CHAT_BATTLEGROUND_GET        = '|Hchannel:Battleground|hb|h %s '
+_G.CHAT_BATTLEGROUND_LEADER_GET = '|Hchannel:Battleground|hB|h %s '
+
+_G.CHAT_CHANNEL_GET             = '%s '
+
+_G.CHAT_GUILD_GET               = '|Hchannel:Guild|hg|h %s '
+_G.CHAT_OFFICER_GET             = '|Hchannel:o|ho|h %s '
+
+_G.CHAT_PARTY_GET               = '|Hchannel:Party|hp|h %s '
+_G.CHAT_PARTY_GUIDE_GET         = '|Hchannel:Party|hP|h %s '
+_G.CHAT_PARTY_LEADER_GET        = '|Hchannel:Party|hP|h %s '
+
+_G.CHAT_RAID_WARNING_GET        = '|Hchannel:raid|hW|h %s '
+_G.CHAT_RAID_GET                = '|Hchannel:raid|hr|h %s '
+_G.CHAT_RAID_LEADER_GET         = '|Hchannel:raid|hR|h %s '
+
+_G.CHAT_SAY_GET                 = '%s '
+_G.CHAT_YELL_GET                = '%s '
+
+_G.CHAT_WHISPER_GET             = '%s < '
+_G.CHAT_WHISPER_INFORM_GET      = '%s > '
+
+function hide_frame(frame)
+	frame.Show = dummy
+	frame:Hide()
 end
 
-local function showFrameForever (f)
-	f:SetScript('OnShow', nil)
-	f:Show()
-end
-
-local function hideFrameForever (f)
-	f:SetScript('OnShow', f.Hide)
-	f:Hide()
-end
-
-local function AddMessage(frame, text, red, green, blue, alpha)
-	text = tostring(text) or ''
-
-	-- channels
-	for k,v in pairs(replaces) do
-		text = text:gsub('|h%['..k..'%]|h', '|h'..v..'|h')
-	end
-
-	-- players
-	text = text:gsub('(|Hplayer.-|h)%[(.-)%]|h', '%1%2|h')
-
-	-- normal messages
-	text = text:gsub(' says:', ':')
-
-	-- whispers
-	text = text:gsub(' whispers:', ' <')
-	text = text:gsub('To (|Hplayer.+|h):', '%1 >')
-
-	-- achievements
-	text = text:gsub('(|Hplayer.+|h) has earned the achievement (.+)!', '%1 ! %2')
-
-	-- timestamp
-	text = '|cff999999' .. date('%H%M') .. '|r ' .. text
-
-	return hooks[frame](frame, text, red, green, blue, alpha)
-end
-
-local function scrollChat(frame, delta)
+function scroll_chat(frame, delta)
 	if delta > 0 then
 		if IsShiftKeyDown() then
 			frame:ScrollToTop()
@@ -75,8 +59,17 @@ local function scrollChat(frame, delta)
 	end
 end
 
-local function tellTarget(s)
-	if not UnitExists('target') and UnitName('target') and UnitIsPlayer('target') and GetDefaultLanguage('player') == GetDefaultLanguage('target') or not (s and s:len()>0) then
+function tell_target(message)
+	if
+		not (
+			message and
+			message:len() > 0
+		) or
+		not UnitExists('target') or
+		not UnitName('target') or
+		not UnitIsPlayer('target') or
+		GetDefaultLanguage('player') ~= GetDefaultLanguage('target')
+	then
 		return
 	end
 
@@ -84,60 +77,85 @@ local function tellTarget(s)
 	if realm and realm ~= GetRealmName() then
 		name = ('%s-%s'):format(name, realm)
 	end
-	SendChatMessage(s, 'WHISPER', nil, name)
+	SendChatMessage(message, 'WHISPER', nil, name)
 end
 
-local f
-for i=1,7 do
-	f = _G['ChatFrame'..i]
+function add_message(frame, text, ...)
+	if not text then
+		return
+	end
+	text = tostring(text)
 
-	-- buttons
-	hideFrameForever(_G['ChatFrame'..i..'UpButton'])
-	hideFrameForever(_G['ChatFrame'..i..'DownButton'])
-	hideFrameForever(_G['ChatFrame'..i..'BottomButton'])
+	ABCDF = ABCDF or text
 
-	-- no chat text fading
-	--f:SetFading(false)
+	-- '|Hchannel:2|h[2. Trade]|h |Hplayer:PlayerName:12345|h[PlayerName]|h MESSAGE'
+	text = text:gsub('|Hchannel:(%d)|h.-|h', '|Hchannel:%1|h%1|h')
+	text = text:gsub('|Hplayer:(.-)|h%[(.-)%]|h', '|Hplayer:%1|h<%2>|h')
 
-	-- scrolling
-	f:EnableMouseWheel(true)
-	f:SetScript('OnMouseWheel', scrollChat)
+	text = ('|cffffffff%s|r %s'):format(date('%H:%M:%S'), text)
 
-	-- text subs
-	hooks[f] = f.AddMessage
-	f.AddMessage = AddMessage
+
+	return original_addmessages[frame](frame, text, ...)
 end
 
--- buttons
-hideFrameForever(ChatFrameMenuButton)
+function enable(...)
+	local frame
+	for i = 1, NUM_CHAT_WINDOWS do
+		frame = _G['ChatFrame' .. i]
 
--- editbox background
-local x=({ChatFrameEditBox:GetRegions()})
-x[6]:SetAlpha(0)
-x[7]:SetAlpha(0)
-x[8]:SetAlpha(0)
+		-- hide buttons
+		hide_frame(_G['ChatFrame' .. i .. 'UpButton'])
+		hide_frame(_G['ChatFrame' .. i .. 'DownButton'])
+		hide_frame(_G['ChatFrame' .. i .. 'BottomButton'])
 
--- editbox position
-ChatFrameEditBox:ClearAllPoints()
-ChatFrameEditBox:SetPoint(BL, _G.ChatFrame1, TL, -5, 0)
-ChatFrameEditBox:SetPoint(BR, _G.ChatFrame1, TR,  5, 0)
+		-- disable text fading
+		frame:SetFading(false)
 
--- editbox noalt
-ChatFrameEditBox:SetAltArrowKeyMode(nil)
+		-- mousewheel scrolling
+		frame:EnableMouseWheel(true)
+		frame:SetScript('OnMouseWheel', scroll_chat)
 
--- sticky channels
-ChatTypeInfo.SAY.sticky = 1
-ChatTypeInfo.EMOTE.sticky = 1
-ChatTypeInfo.YELL.sticky = 1
-ChatTypeInfo.PARTY.sticky = 1
-ChatTypeInfo.GUILD.sticky = 1
-ChatTypeInfo.OFFICER.sticky = 1
-ChatTypeInfo.RAID.sticky = 1
-ChatTypeInfo.RAID_WARNING.sticky = 1
-ChatTypeInfo.BATTLEGROUND.sticky = 1
-ChatTypeInfo.WHISPER.sticky = 1
-ChatTypeInfo.CHANNEL.sticky = 1
+		original_addmessages[frame] = frame.AddMessage
+		frame.AddMessage = add_message
+	end
 
--- target tell
-SlashCmdList['IDCHATTELLTARGET'] = tellTarget
-_G.SLASH_IDCHATTELLTARGET1 = '/tt'
+	ABCDF = original_addmessages
+
+	-- hide buttons
+	hide_frame(ChatFrameMenuButton)
+
+	-- editbox
+	local x=({ChatFrameEditBox:GetRegions()})
+	x[6]:SetAlpha(0)
+	x[7]:SetAlpha(0)
+	x[8]:SetAlpha(0)
+
+	-- editbox position
+	ChatFrameEditBox:ClearAllPoints()
+	ChatFrameEditBox:SetPoint(BL, _G.ChatFrame1, TL, -5, 0)
+	ChatFrameEditBox:SetPoint(BR, _G.ChatFrame1, TR,  5, 0)
+
+	-- editbox noalt
+	ChatFrameEditBox:SetAltArrowKeyMode(nil)
+
+	-- sticky channels
+	ChatTypeInfo.SAY.sticky = 1
+	ChatTypeInfo.EMOTE.sticky = 1
+	ChatTypeInfo.YELL.sticky = 1
+	ChatTypeInfo.PARTY.sticky = 1
+	ChatTypeInfo.GUILD.sticky = 1
+	ChatTypeInfo.OFFICER.sticky = 1
+	ChatTypeInfo.RAID.sticky = 1
+	ChatTypeInfo.RAID_WARNING.sticky = 1
+	ChatTypeInfo.BATTLEGROUND.sticky = 1
+	ChatTypeInfo.WHISPER.sticky = 1
+	ChatTypeInfo.CHANNEL.sticky = 1
+
+	-- target tell
+	SlashCmdList['IDCHATTELLTARGET'] = tell_target
+	_G.SLASH_IDCHATTELLTARGET1 = '/tt'
+end
+
+f:SetScript('OnEvent', enable)
+f:RegisterEvent('PLAYER_LOGIN')
+
