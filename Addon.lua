@@ -6,12 +6,15 @@ local BL, BC, BR = 'BOTTOMLEFT', 'BOTTOM', 'BOTTOMRIGHT'
 
 local f = CreateFrame('Frame')
 local original_addmessages = {}
+local original_SetItemRef = SetItemRef
 
 local dummy = function(...) end
 local hide_frame
 local scroll_chat
 local tell_target
 local add_message
+local get_chat_text
+local set_item_ref
 
 local enable
 local on_event
@@ -68,10 +71,37 @@ function add_message(frame, text, ...)
 	text = text:gsub('|Hchannel:(%d)|h.-|h', '|Hchannel:%1|h%1|h')
 	text = text:gsub('|Hplayer:(.-)|h%[(.-)%]|h', '|Hplayer:%1|h<%2>|h')
 
-	text = ('|cffffffff%s|r %s'):format(date('%H:%M:%S'), text)
+	text = ('|cffffffff|HidChat|h%s|h|r %s'):format(date('%H:%M:%S'), text)
 
 
 	return original_addmessages[frame](frame, text, ...)
+end
+
+function get_chat_text(...)
+	for l = 1, select('#', ...) do
+		local obj = select(l, ...)
+		if(obj:GetObjectType() == 'FontString' and MouseIsOver(obj)) then
+			return obj:GetText()
+		end
+	end
+end
+
+function set_item_ref(link, text, button, ...)
+	if link ~= 'idChat' then
+		return original_SetItemRef(link, text, button, ...)
+	end
+
+	local eb = ChatFrameEditBox
+	local text = get_chat_text(SELECTED_CHAT_FRAME:GetRegions())
+	if text then
+		text = text:gsub("|c%x%x%x%x%x%x%x%x(.-)|r", "%1")
+		text = text:gsub("|H.-|h(.-)|h", "%1")
+
+		eb:Insert(text)
+		eb:Show()
+		eb:HighlightText()
+		eb:SetFocus()
+	end
 end
 
 function enable(...)
@@ -150,6 +180,9 @@ function enable(...)
 	-- target tell
 	SlashCmdList['IDCHATTELLTARGET'] = tell_target
 	_G.SLASH_IDCHATTELLTARGET1 = '/tt'
+
+	-- chat copying
+	_G.SetItemRef = set_item_ref
 end
 
 f:SetScript('OnEvent', enable)
