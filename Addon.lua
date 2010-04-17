@@ -86,8 +86,6 @@ function add_message(frame, text, ...)
 	end
 	text = tostring(text)
 
-	ABCDF = ABCDF or text
-
 	-- '|Hchannel:2|h[2. Trade]|h |Hplayer:PlayerName:12345|h[PlayerName]|h MESSAGE'
 	text = text:gsub('|Hchannel:(%d)|h.-|h', '|Hchannel:%1|h%1|h')
 	text = text:gsub('|Hplayer:(.-)|h%[(.-)%]|h', '|Hplayer:%1|h<%2>|h')
@@ -118,8 +116,6 @@ function enable(...)
 		original_addmessages[frame] = frame.AddMessage
 		frame.AddMessage = add_message
 	end
-
-	ABCDF = original_addmessages
 
 	-- hide buttons
 	hide_frame(ChatFrameMenuButton)
