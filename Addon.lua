@@ -42,10 +42,7 @@ end
 
 function tell_target(message)
 	if
-		not (
-			message and
-			message:len() > 0
-		) or
+		not (message and message:len() > 0) or
 		not UnitExists('target') or
 		not UnitName('target') or
 		not UnitIsPlayer('target') or
@@ -69,7 +66,7 @@ function add_message(frame, text, ...)
 
 	-- '|Hchannel:2|h[2. Trade]|h |Hplayer:PlayerName:12345|h[PlayerName]|h MESSAGE'
 	text = text:gsub('|Hchannel:(%d)|h.-|h', '|Hchannel:%1|h%1|h')
-	text = text:gsub('|Hplayer:(.-)|h%[(.-)%]|h', '|Hplayer:%1|h<%2>|h')
+	text = text:gsub('|Hplayer:(.-)|h%[(.-)%]|h', '|Hplayer:%1|h%2|h')
 
 	text = ('|cffffffff|HidChat|h%s|h|r %s'):format(date('%H:%M:%S'), text)
 
