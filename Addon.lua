@@ -16,28 +16,6 @@ local add_message
 local enable
 local on_event
 
-_G.CHAT_BATTLEGROUND_GET        = '|Hchannel:Battleground|hb|h %s '
-_G.CHAT_BATTLEGROUND_LEADER_GET = '|Hchannel:Battleground|hB|h %s '
-
-_G.CHAT_CHANNEL_GET             = '%s '
-
-_G.CHAT_GUILD_GET               = '|Hchannel:Guild|hg|h %s '
-_G.CHAT_OFFICER_GET             = '|Hchannel:o|ho|h %s '
-
-_G.CHAT_PARTY_GET               = '|Hchannel:Party|hp|h %s '
-_G.CHAT_PARTY_GUIDE_GET         = '|Hchannel:Party|hP|h %s '
-_G.CHAT_PARTY_LEADER_GET        = '|Hchannel:Party|hP|h %s '
-
-_G.CHAT_RAID_WARNING_GET        = '|Hchannel:raid|hW|h %s '
-_G.CHAT_RAID_GET                = '|Hchannel:raid|hr|h %s '
-_G.CHAT_RAID_LEADER_GET         = '|Hchannel:raid|hR|h %s '
-
-_G.CHAT_SAY_GET                 = '%s '
-_G.CHAT_YELL_GET                = '%s '
-
-_G.CHAT_WHISPER_GET             = '%s < '
-_G.CHAT_WHISPER_INFORM_GET      = '%s > '
-
 function hide_frame(frame)
 	frame.Show = dummy
 	frame:Hide()
@@ -116,6 +94,28 @@ function enable(...)
 		original_addmessages[frame] = frame.AddMessage
 		frame.AddMessage = add_message
 	end
+
+	_G.CHAT_BATTLEGROUND_GET        = '|Hchannel:Battleground|hb|h %s '
+	_G.CHAT_BATTLEGROUND_LEADER_GET = '|Hchannel:Battleground|hB|h %s '
+
+	_G.CHAT_CHANNEL_GET             = '%s '
+
+	_G.CHAT_GUILD_GET               = '|Hchannel:Guild|hg|h %s '
+	_G.CHAT_OFFICER_GET             = '|Hchannel:o|ho|h %s '
+
+	_G.CHAT_PARTY_GET               = '|Hchannel:Party|hp|h %s '
+	_G.CHAT_PARTY_GUIDE_GET         = '|Hchannel:Party|hP|h %s '
+	_G.CHAT_PARTY_LEADER_GET        = '|Hchannel:Party|hP|h %s '
+
+	_G.CHAT_RAID_WARNING_GET        = '|Hchannel:raid|hW|h %s '
+	_G.CHAT_RAID_GET                = '|Hchannel:raid|hr|h %s '
+	_G.CHAT_RAID_LEADER_GET         = '|Hchannel:raid|hR|h %s '
+
+	_G.CHAT_SAY_GET                 = '%s '
+	_G.CHAT_YELL_GET                = '%s '
+
+	_G.CHAT_WHISPER_GET             = '%s < '
+	_G.CHAT_WHISPER_INFORM_GET      = '%s > '
 
 	-- hide buttons
 	hide_frame(ChatFrameMenuButton)
