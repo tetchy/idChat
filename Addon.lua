@@ -1,30 +1,165 @@
+--[[----------------------------------------------------------------------------
+  Copyright (c) 2009, Tom Wieland
+  All rights reserved.
+
+  Redistribution and use in source and binary forms, with or without
+  modification, are permitted provided that the following conditions are met:
+
+  * Redistributions of source code must retain the above copyright notice,
+    this list of conditions and the following disclaimer.
+  * Redistributions in binary form must reproduce the above copyright notice,
+    this list of conditions and the following disclaimer in the documentation
+    and/or other materials provided with the distribution.
+  * Neither the name of idChat nor the names of its contributors may be used
+    to endorse or promote products derived from this software without specific
+    prior written permission.
+
+  THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS "AS IS"
+  AND ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT LIMITED TO, THE
+  IMPLIED WARRANTIES OF MERCHANTABILITY AND FITNESS FOR A PARTICULAR PURPOSE
+  ARE DISCLAIMED. IN NO EVENT SHALL THE COPYRIGHT OWNER OR CONTRIBUTORS BE
+  LIABLE FOR ANY DIRECT, INDIRECT, INCIDENTAL, SPECIAL, EXEMPLARY, OR
+  CONSEQUENTIAL DAMAGES (INCLUDING, BUT NOT LIMITED TO, PROCUREMENT OF
+  SUBSTITUTE GOODS OR SERVICES; LOSS OF USE, DATA, OR PROFITS; OR BUSINESS
+  INTERRUPTION) HOWEVER CAUSED AND ON ANY THEORY OF LIABILITY, WHETHER IN
+  CONTRACT, STRICT LIABILITY, OR TORT (INCLUDING NEGLIGENCE OR OTHERWISE)
+  ARISING IN ANY WAY OUT OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE
+  POSSIBILITY OF SUCH DAMAGE.
+------------------------------------------------------------------------------]]
+
 local _G = _G
+
+ChatFontNormal:SetFont("Fonts\\ARIALN.ttf", 12, "THINOUTLINE") 
+ChatFrame1:SetFont("Fonts\\ARIALN.ttf", 12, "OUTLINE")
+ChatFrame2:SetFont("Fonts\\ARIALN.ttf", 12, "OUTLINE")
+ChatFrame3:SetFont("Fonts\\ARIALN.ttf", 12, "OUTLINE")
 
 local TL, TC, TR = 'TOPLEFT', 'TOP', 'TOPRIGHT'
 local ML, MC, MR = 'LEFT', 'CENTER', 'RIGHT'
 local BL, BC, BR = 'BOTTOMLEFT', 'BOTTOM', 'BOTTOMRIGHT'
 
-local f = CreateFrame('Frame')
-local original_addmessages = {}
-local original_SetItemRef = SetItemRef
+local hooks = {}
+local replaces = {
+	['Guild'] = '.g.',
+	['Party'] = '.p.',
+	['Raid'] = '.r.',
+	['Raid Leader'] = '.rl.',
+	['Raid Warning'] = '!rw!',
+	['Officer'] = '.o.',
+	['Battleground'] = '.bg.',
+	['Battleground Leader'] = '.bl.',
+	['Dungeon Guide'] = '.dg.',
+	['Party Leader'] = '.pl.',
+	['(%d+)%. .-'] = '%1',
+}
 
-local dummy = function(...) end
-local hide_frame
-local scroll_chat
-local tell_target
-local add_message
-local get_chat_text
-local set_item_ref
+CHAT_FLAG_AFK = "|cff348EF5afk!|r "
+CHAT_FLAG_DND = "|cffE81E6Cdnd!|r "
+CHAT_FLAG_GM = "|cffEA00FFgm!|r "
+FACTION_STANDING_CHANGED = "%s: %s"
+FACTION_STANDING_DECREASED = "|3-7(%s) -%d."
+FACTION_STANDING_INCREASED = "|3-7(%s) +%d."
+CHAT_YOU_CHANGED_NOTICE = "# |Hchannel:%d|h%s|h"
+CHAT_YOU_JOINED_NOTICE = "+ |Hchannel:%d|h%s|h"
+CHAT_YOU_LEFT_NOTICE = "- |Hchannel:%d|h%s|h"
+CHAT_CHANNEL_JOIN_GET = "+ %s"
+CHAT_CHANNEL_LEAVE_GET = "- %s"
+ERR_FRIEND_ADDED_S = "%s ++f"
+ERR_FRIEND_REMOVED_S = "%s --f"
+ERR_FRIEND_WRONG_FACTION = "|cffD21111wrong faction|r."
+ERR_FRIEND_SELF = "|cffD21111adding self|r."
+ERR_FRIEND_ONLINE_SS = "|Hplayer:%s|h[%s]|h |cff0DF246on|r."
+ERR_FRIEND_OFFLINE_S = "%s |cffF0315Eoff|r."
+ERR_IGNORE_ADDED_S = "%s |cffF52020ignored|r."
+ERR_IGNORE_REMOVED_S = "%s --|cffF52020ignore|r."
+ERR_IGNORE_ALREADY_S = "%s |cffF52020ignored|r already."
+ERR_QUEST_REWARD_ITEM_MULT_IS = "|cffE8217Bgiven|r %dx %s"
+ERR_QUEST_REWARD_ITEM_S = "|cffE8217Bgiven|r %s"
+ERR_ZONE_EXPLORED = "|cff4DE48Fdiscovered|r %s"
+ERR_ZONE_EXPLORED_XP = "|cff4DE48Fdiscovered|r %s | gained %d |cff239B29xp|r"
+COMBATLOG_HONORAWARD = "|cff38B75C+|r %d |cff38B7C5honor|r"
+COMBATLOG_HONORGAIN = "%s dies, rank: %s (%d |cff38B7C5honor|r)"
+COMBATLOG_XPGAIN = "%s |cff239B29+|r %d |cff239B29xp|r"
+ERR_QUEST_REWARD_EXP_I = "|cff239B29+|r %d |cff239B29xp|r"
+COMBATLOG_XPGAIN_FIRSTPERSON = "%s dies |cff239B29+|r %d |cff239B29xp|r"
+COMBATLOG_XPGAIN_EXHAUSTION1 = COMBATLOG_XPGAIN_FIRSTPERSON.." %s |cff239B29xp|r %s |cff18D5EAbonus|r"
+COMBATLOG_XPGAIN_EXHAUSTION1_GROUP = COMBATLOG_XPGAIN_FIRSTPERSON.." %s |cff239B29xp|r %s |cff18D5EAbonus|r, +%d |cff0C99E4group|r"
+COMBATLOG_XPGAIN_EXHAUSTION1_RAID = COMBATLOG_XPGAIN_FIRSTPERSON.." %s |cff239B29xp|r %s |cff18D5EAbonus|r, -%d |cffF041C4r|r"
+COMBATLOG_XPGAIN_EXHAUSTION2 = COMBATLOG_XPGAIN_FIRSTPERSON.." %s |cff239B29xp|r %s |cff18D5EAbonus|r"
+COMBATLOG_XPGAIN_EXHAUSTION2_GROUP = COMBATLOG_XPGAIN_FIRSTPERSON.." %s |cff239B29xp|r %s |cff18D5EAbonus|r, +%d |cff0C99E4g|r"
+COMBATLOG_XPGAIN_EXHAUSTION2_RAID = COMBATLOG_XPGAIN_FIRSTPERSON.." %s |cff239B29xp|r %s |cff18D5EAbonus|r, -%d |cffF041C4r|r"
+COMBATLOG_XPGAIN_EXHAUSTION4 = COMBATLOG_XPGAIN_FIRSTPERSON.." %s |cff239B29xp|r %s |cffE43167p|r"
+COMBATLOG_XPGAIN_EXHAUSTION4_GROUP = COMBATLOG_XPGAIN_FIRSTPERSON.." %s |cff239B29xp|r %s |cffE43167p|r, +%d |cff0C99E4g|r"
+COMBATLOG_XPGAIN_EXHAUSTION4_RAID = COMBATLOG_XPGAIN_FIRSTPERSON.." (%s |cff239B29xp|r %s |cffE43167p|r, -%d |cffF041C4r|r"
+COMBATLOG_XPGAIN_EXHAUSTION5 = COMBATLOG_XPGAIN_FIRSTPERSON.." %s |cff239B29xp|r %s |cffE43167p|r"
+COMBATLOG_XPGAIN_EXHAUSTION5_GROUP = COMBATLOG_XPGAIN_FIRSTPERSON.." %s |cff239B29xp|r %s |cffE43167p|r, +%d |cff0C99E4g|r"
+COMBATLOG_XPGAIN_EXHAUSTION5_RAID = COMBATLOG_XPGAIN_FIRSTPERSON.." %s |cff239B29xp|r %s |cffE43167p|r, -%d |cffF041C4r|r"
+COMBATLOG_XPGAIN_FIRSTPERSON_GROUP = COMBATLOG_XPGAIN_FIRSTPERSON.." +%d |cff0C99E4g|r"
+COMBATLOG_XPGAIN_FIRSTPERSON_RAID = COMBATLOG_XPGAIN_FIRSTPERSON.." -%d |cffF041C4r|r"
+COMBATLOG_XPGAIN_FIRSTPERSON_UNNAMED = "|cff239B29++|r %d |cff239B29xp|r";
+COMBATLOG_XPGAIN_FIRSTPERSON_UNNAMED_GROUP = COMBATLOG_XPGAIN_FIRSTPERSON_UNNAMED.." +%d |cff0C99E4g|r"
+COMBATLOG_XPGAIN_FIRSTPERSON_UNNAMED_RAID = COMBATLOG_XPGAIN_FIRSTPERSON_UNNAMED.." -%d |cffF041C4r|r"
+COMBATLOG_XPGAIN_QUEST = COMBATLOG_XPGAIN_FIRSTPERSON_UNNAMED.." %s |cff239B29xp|r %s |cff18D5EAbonus|r"
+COMBATLOG_XPLOSS_FIRSTPERSON_UNNAMED = "|cffE60E4f--|r %d |cff239B29xp|r"
+ERR_SKILL_GAINED_S = "|cff38B75C+|r %s"
+ERR_SKILL_UP_SI = "%s |cff38B75C+|r %d"
+RAID_INSTANCE_WELCOME = "%s resets in %s."
+DUEL_WINNER_KNOCKOUT = "%1$s wins over %2$s."
+DUEL_WINNER_RETREAT = "%2$s forfiet %1$s."
+LOOT_ITEM = "|cffE8217Bloot|r %s: %s"
+LOOT_ITEM_MULTIPLE = "|cffE8217Bloot|r %s: %sx%d"
+LOOT_ITEM_SELF = "|cffE8217Bloot|r: %s"
+LOOT_ITEM_SELF_MULTIPLE = "|cffE8217Bloot|r: %sx%d"
+LOOT_ITEM_PUSHED_SELF = "|cffE8217Bloot|r: %s"
+LOOT_ITEM_PUSHED_SELF_MULTIPLE = "|cffE8217Bloot|r: %sx%d"
+LOOT_MONEY = "%s"
+YOU_LOOT_MONEY = "%s"
+LOOT_MONEY_SPLIT = "%s"
 
-local enable
-local on_event
-
-function hide_frame(frame)
-	frame.Show = dummy
-	frame:Hide()
+local function moveFrame (f, p1, p, p2, x, y)
+	f:ClearAllPoints()
+	f:SetPoint(p1, p, p2, x, y)
 end
 
-function scroll_chat(frame, delta)
+local function showFrameForever (f)
+	f:SetScript('OnShow', nil)
+	f:Show()
+end
+
+local function hideFrameForever (f)
+	f:SetScript('OnShow', f.Hide)
+	f:Hide()
+end
+
+local function AddMessage(frame, text, red, green, blue, id)
+	text = tostring(text) or ''
+
+	-- channels
+	for k,v in pairs(replaces) do
+		text = text:gsub('|h%['..k..'%]|h', '|h'..v..'|h')
+	end
+
+	-- players
+	text = text:gsub('(|Hplayer.-|h)%[(.-)%]|h', '%1%2|h')
+
+	-- normal messages
+	text = text:gsub(' says:', ':')
+	
+
+	-- whispers
+	text = text:gsub(' whispers:', ' <')
+	text = text:gsub('To (|Hplayer.+|h):', '%1 >')
+
+	-- achievements
+	text = text:gsub('(|Hplayer.+|h) has earned the achievement (.+)!', '%1 ! %2')
+
+	-- timestamp
+	--text = '|cff999999' .. date('%I%M') .. '|r ' .. text
+
+	return hooks[frame](frame, text, red, green, blue, id)
+end
+
+local function scrollChat(frame, delta)
 	if delta > 0 then
 		if IsShiftKeyDown() then
 			frame:ScrollToTop()
@@ -40,14 +175,8 @@ function scroll_chat(frame, delta)
 	end
 end
 
-function tell_target(message)
-	if
-		not (message and message:len() > 0) or
-		not UnitExists('target') or
-		not UnitName('target') or
-		not UnitIsPlayer('target') or
-		GetDefaultLanguage('player') ~= GetDefaultLanguage('target')
-	then
+local function tellTarget(s)
+	if not UnitExists('target') and UnitName('target') and UnitIsPlayer('target') and GetDefaultLanguage('player') == GetDefaultLanguage('target') or not (s and s:len()>0) then
 		return
 	end
 
@@ -55,133 +184,62 @@ function tell_target(message)
 	if realm and realm ~= GetRealmName() then
 		name = ('%s-%s'):format(name, realm)
 	end
-	SendChatMessage(message, 'WHISPER', nil, name)
+	SendChatMessage(s, 'WHISPER', nil, name)
 end
 
-function add_message(frame, text, ...)
-	if not text then
-		return
-	end
-	text = tostring(text)
+local f
+for i=1,7 do
+	f = _G['ChatFrame'..i]
 
-	-- '|Hchannel:2|h[2. Trade]|h |Hplayer:PlayerName:12345|h[PlayerName]|h MESSAGE'
-	text = text:gsub('|Hchannel:(%d)|h.-|h', '|Hchannel:%1|h%1|h')
-	text = text:gsub('|Hplayer:(.-)|h%[(.-)%]|h', '|Hplayer:%1|h%2|h')
+	-- buttons
+	hideFrameForever(_G['ChatFrame'..i..'UpButton'])
+	hideFrameForever(_G['ChatFrame'..i..'DownButton'])
+	hideFrameForever(_G['ChatFrame'..i..'BottomButton'])
 
-	text = ('|cffffffff|HidChat|h%s|h|r %s'):format(date('%H:%M:%S'), text)
+	-- no chat text fading
+	--f:SetFading(false)
 
+	-- scrolling
+	f:EnableMouseWheel(true)
+	f:SetScript('OnMouseWheel', scrollChat)
 
-	return original_addmessages[frame](frame, text, ...)
+	-- text subs
+	hooks[f] = f.AddMessage
+	f.AddMessage = AddMessage
 end
 
-function get_chat_text(...)
-	for l = 1, select('#', ...) do
-		local obj = select(l, ...)
-		if(obj:GetObjectType() == 'FontString' and MouseIsOver(obj)) then
-			return obj:GetText()
-		end
-	end
-end
+-- buttons
+hideFrameForever(ChatFrameMenuButton)
 
-function set_item_ref(link, text, button, ...)
-	if link ~= 'idChat' then
-		return original_SetItemRef(link, text, button, ...)
-	end
+-- editbox background
+local x=({ChatFrameEditBox:GetRegions()})
+x[6]:SetAlpha(0)
+x[7]:SetAlpha(0)
+x[8]:SetAlpha(0)
 
-	local eb = ChatFrameEditBox
-	local text = get_chat_text(SELECTED_CHAT_FRAME:GetRegions())
-	if text then
-		text = text:gsub("|c%x%x%x%x%x%x%x%x(.-)|r", "%1")
-		text = text:gsub("|H.-|h(.-)|h", "%1")
+-- editbox position
+ChatFrameEditBox:ClearAllPoints()
+ChatFrameEditBox:SetPoint(BL, _G.ChatFrame1, TL, -5, 0)
+ChatFrameEditBox:SetPoint(BR, _G.ChatFrame1, TR,  5, 0)
 
-		eb:Insert(text)
-		eb:Show()
-		eb:HighlightText()
-		eb:SetFocus()
-	end
-end
+-- editbox noalt
+ChatFrameEditBox:SetAltArrowKeyMode(nil)
 
-function enable(...)
-	local frame
-	for i = 1, NUM_CHAT_WINDOWS do
-		frame = _G['ChatFrame' .. i]
 
-		-- hide buttons
-		hide_frame(_G['ChatFrame' .. i .. 'UpButton'])
-		hide_frame(_G['ChatFrame' .. i .. 'DownButton'])
-		hide_frame(_G['ChatFrame' .. i .. 'BottomButton'])
 
-		-- disable text fading
-		frame:SetFading(false)
+-- sticky channels
+ChatTypeInfo.SAY.sticky = 1
+ChatTypeInfo.EMOTE.sticky = 1
+ChatTypeInfo.YELL.sticky = 1
+ChatTypeInfo.PARTY.sticky = 1
+ChatTypeInfo.GUILD.sticky = 1
+ChatTypeInfo.OFFICER.sticky = 1
+ChatTypeInfo.RAID.sticky = 1
+ChatTypeInfo.RAID_WARNING.sticky = 1
+ChatTypeInfo.BATTLEGROUND.sticky = 1
+ChatTypeInfo.WHISPER.sticky = 1
+ChatTypeInfo.CHANNEL.sticky = 1
 
-		-- mousewheel scrolling
-		frame:EnableMouseWheel(true)
-		frame:SetScript('OnMouseWheel', scroll_chat)
-
-		original_addmessages[frame] = frame.AddMessage
-		frame.AddMessage = add_message
-	end
-
-	_G.CHAT_BATTLEGROUND_GET        = '|Hchannel:Battleground|hb|h %s '
-	_G.CHAT_BATTLEGROUND_LEADER_GET = '|Hchannel:Battleground|hB|h %s '
-
-	_G.CHAT_CHANNEL_GET             = '%s '
-
-	_G.CHAT_GUILD_GET               = '|Hchannel:Guild|hg|h %s '
-	_G.CHAT_OFFICER_GET             = '|Hchannel:o|ho|h %s '
-
-	_G.CHAT_PARTY_GET               = '|Hchannel:Party|hp|h %s '
-	_G.CHAT_PARTY_GUIDE_GET         = '|Hchannel:Party|hP|h %s '
-	_G.CHAT_PARTY_LEADER_GET        = '|Hchannel:Party|hP|h %s '
-
-	_G.CHAT_RAID_WARNING_GET        = '|Hchannel:raid|hW|h %s '
-	_G.CHAT_RAID_GET                = '|Hchannel:raid|hr|h %s '
-	_G.CHAT_RAID_LEADER_GET         = '|Hchannel:raid|hR|h %s '
-
-	_G.CHAT_SAY_GET                 = '%s '
-	_G.CHAT_YELL_GET                = '%s '
-
-	_G.CHAT_WHISPER_GET             = '%s < '
-	_G.CHAT_WHISPER_INFORM_GET      = '%s > '
-
-	-- hide buttons
-	hide_frame(ChatFrameMenuButton)
-
-	-- editbox
-	local a, b, c = select(6, ChatFrameEditBox:GetRegions())
-	a:SetAlpha(0)
-	b:SetAlpha(0)
-	c:SetAlpha(0)
-
-	-- editbox position
-	ChatFrameEditBox:ClearAllPoints()
-	ChatFrameEditBox:SetPoint(BL, _G.ChatFrame1, TL, -5, 0)
-	ChatFrameEditBox:SetPoint(BR, _G.ChatFrame1, TR,  5, 0)
-
-	-- editbox noalt
-	ChatFrameEditBox:SetAltArrowKeyMode(nil)
-
-	-- sticky channels
-	ChatTypeInfo.SAY.sticky = 1
-	ChatTypeInfo.EMOTE.sticky = 1
-	ChatTypeInfo.YELL.sticky = 1
-	ChatTypeInfo.PARTY.sticky = 1
-	ChatTypeInfo.GUILD.sticky = 1
-	ChatTypeInfo.OFFICER.sticky = 1
-	ChatTypeInfo.RAID.sticky = 1
-	ChatTypeInfo.RAID_WARNING.sticky = 1
-	ChatTypeInfo.BATTLEGROUND.sticky = 1
-	ChatTypeInfo.WHISPER.sticky = 1
-	ChatTypeInfo.CHANNEL.sticky = 1
-
-	-- target tell
-	SlashCmdList['IDCHATTELLTARGET'] = tell_target
-	_G.SLASH_IDCHATTELLTARGET1 = '/tt'
-
-	-- chat copying
-	_G.SetItemRef = set_item_ref
-end
-
-f:SetScript('OnEvent', enable)
-f:RegisterEvent('PLAYER_LOGIN')
-
+-- target tell
+SlashCmdList['IDCHATTELLTARGET'] = tellTarget
+_G.SLASH_IDCHATTELLTARGET1 = '/tt'
